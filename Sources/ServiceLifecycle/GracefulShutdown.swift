@@ -115,7 +115,9 @@ enum ValueOrGracefulShutdown<T: Sendable>: Sendable {
 /// Cancels the closure when a graceful shutdown was triggered.
 ///
 /// - Parameter operation: The actual operation.
-public func cancelWhenGracefulShutdown<T: Sendable>(_ operation: @Sendable @escaping () async throws -> T) async rethrows -> T {
+public func cancelWhenGracefulShutdown<T: Sendable>(
+    _ operation: @Sendable @escaping () async throws -> T
+) async rethrows -> T {
     return try await withThrowingTaskGroup(of: ValueOrGracefulShutdown<T>.self) { group in
         group.addTask {
             let value = try await operation()
@@ -163,7 +165,9 @@ public func cancelWhenGracefulShutdown<T: Sendable>(_ operation: @Sendable @esca
 // renamed pattern has been shown to cause compiler crashes in 5.x compilers.
 @available(*, deprecated, message: "renamed to cancelWhenGracefulShutdown")
 #endif
-public func cancelOnGracefulShutdown<T: Sendable>(_ operation: @Sendable @escaping () async throws -> T) async rethrows -> T? {
+public func cancelOnGracefulShutdown<T: Sendable>(
+    _ operation: @Sendable @escaping () async throws -> T
+) async rethrows -> T? {
     return try await cancelWhenGracefulShutdown(operation)
 }
 
@@ -218,11 +222,7 @@ public final class GracefulShutdownManager: @unchecked Sendable {
 
     func registerHandler(_ handler: @Sendable @escaping () -> Void) -> UInt64? {
         return self.state.withLockedValue { state in
-            if state.isShuttingDown {
-                // We are already shutting down so we just run the handler now.
-                handler()
-                return nil
-            } else {
+            guard state.isShuttingDown else {
                 defer {
                     state.handlerCounter += 1
                 }
@@ -231,6 +231,9 @@ public final class GracefulShutdownManager: @unchecked Sendable {
 
                 return handlerID
             }
+            // We are already shutting down so we just run the handler now.
+            handler()
+            return nil
         }
     }
 
